@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket 클라이언트</title>
+</head>
+<body>
+
+    <div>
+        <select id="clientType">
+            <option value="pc">PC 클라이언트</option>
+            <option value="app">APP 클라이언트</option>
+        </select>
+
+        <button onclick="connect()">연결</button>
+        <button onclick="disconnect()">연결 해제</button>
+    </div>
+
+    <div>
+        <input type="text" id="InputText" placeholder="메시지를 입력하세요">
+        <button onclick="send()">메시지 전송</button>
+    </div>
+
+    <div id="log" style="margin-top:10px; border:1px solid #ccc; padding:10px; height:200px; overflow:auto;"></div>
+
+    <script>
+        let ws = null;
+        let clientType = 'pc';
+        let messageBuffer = new Uint8Array();
+
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder("utf-8");
+
+        function connect() {
+            clientType = document.getElementById('clientType').value;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log(`이미 ${clientType.toUpperCase()}가 서버에 연결되어 있습니다.`);
+                return;
+            }
+
+            ws = new WebSocket(`ws://localhost:8080?type=${clientType}`);
+            ws.binaryType = "arraybuffer";
+
+            ws.onopen = () => {
+                log(`${clientType.toUpperCase()}가 서버에 연결되었습니다.`);
+            };
+
+            ws.onmessage = (event) => {
+                if (typeof event.data === 'string') {
+                    log(`문자열 메시지 수신: ${event.data}`);
+                } else {
+                    handleIncomingMessage(event.data);
+                }
+            };
+
+            ws.onclose = () => {
+                log(`${clientType.toUpperCase()}가 서버와 연결 해제되었습니다.`);
+                setTimeout(() => {
+                    log("재연결 시도 중...");
+                    connect();
+                }, 3000);
+            };
+
+            ws.onerror = (error) => {
+                log(`${clientType.toUpperCase()} 오류 발생: ${error.message}`);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function send() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log("서버에 연결되어 있지 않습니다.");
+                return;
+            }
+
+            const input = document.getElementById('InputText');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const jsonMessage = JSON.stringify({ type: clientType, content: message });
+            sendBinaryMessage(jsonMessage);
+
+            log(`보낸 메시지: ${message}`);
+            input.value = '';
+        }
+
+        function sendBinaryMessage(data) {
+            const dataBuffer = encoder.encode(data);
+            const lengthBuffer = new ArrayBuffer(4);
+            new DataView(lengthBuffer).setUint32(0, dataBuffer.length, false); // Big Endian
+            const fullPacket = new Uint8Array(4 + dataBuffer.length);
+            fullPacket.set(new Uint8Array(lengthBuffer), 0);
+            fullPacket.set(dataBuffer, 4);
+
+            ws.send(fullPacket);
+        }
+
+        function handleIncomingMessage(data) {
+            const received = new Uint8Array(data);
+            const merged = new Uint8Array(messageBuffer.length + received.length);
+            merged.set(messageBuffer, 0);
+            merged.set(received, messageBuffer.length);
+            messageBuffer = merged;
+
+            while (messageBuffer.length >= 4) {
+                const lengthView = new DataView(messageBuffer.buffer, messageBuffer.byteOffset, messageBuffer.byteLength);
+                const messageLength = lengthView.getUint32(0, false); // Big Endian
+
+                if (messageBuffer.length >= 4 + messageLength) {
+                    const messageBytes = messageBuffer.slice(4, 4 + messageLength);
+                    const messageString = decoder.decode(messageBytes);
+
+                    try {
+                        const parsed = JSON.parse(messageString);
+                        log(`받은 메시지: ${parsed.content}`);
+                    } catch (e) {
+                        log(`받은 메시지 (JSON 아님): ${messageString}`);
+                    }
+
+                    messageBuffer = messageBuffer.slice(4 + messageLength);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        function log(message) {
+            const logArea = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logArea.appendChild(entry);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+    </script>
+
+</body>
+</html>
