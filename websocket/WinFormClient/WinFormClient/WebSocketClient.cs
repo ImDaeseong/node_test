@@ -12,15 +12,14 @@ namespace WinFormClient
     public delegate void OnClientConnectDelegate();
     public delegate void OnClientDisConnectDelegate();
     public delegate void OnClientSendCompleteDelegate(int bytesSent);
-    public delegate void OnClientCodeDelegate(string code);
 
     public class WebSocketClient : IDisposable
     {
         private ClientWebSocket ws;
         private Uri uri;
         private CancellationTokenSource cts;
-        private List<byte> messageBuffer = new List<byte>(4096);
-        private const int BUFFER_SIZE = 4096;
+        private List<byte> messageBuffer = new List<byte>(2048);
+        private const int BUFFER_SIZE = 2048;
         private bool disposed = false;
         private static readonly Encoding Utf8 = Encoding.UTF8;
         private Task receiveTask;
