@@ -31,7 +31,7 @@ wss.on('connection', (ws, req) => {
 
     if (clientType === 'app') {
         clients.apps.add(ws);
-        console.log(`📱 APP 연결됨 (현재 ${clients.apps.size}개)`);
+        console.log(`APP 연결됨 (현재 ${clients.apps.size}개)`);
     } else {
         if (clients.pc) {
             clients.pc.close(4002, '기존 PC 연결 해제됨');
