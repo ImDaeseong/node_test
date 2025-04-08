@@ -15,22 +15,20 @@ namespace WinFormClient
         private void Form1_Load(object sender, EventArgs e)
         {
             client = new WebSocketClient("ws://127.0.0.1:8080/?type=pc");
-
             client.OnConnected += Client_OnConnected;
             client.OnDisconnected += Client_OnDisconnected;
-            client.OnMessageSent += Client_OnMessageSent;
             client.OnMessageReceived += Client_OnMessageReceived;
-            client.OnCode += AppendText;
+            client.OnMessageSent += Client_OnMessageSent;
         }
 
-        private void Client_OnMessageReceived(string msg)
+        private void Client_OnMessageReceived(string message)
         {
-            AppendText($"수신: {msg}");
+            AppendText("수신: " + message);
         }
 
-        private void Client_OnMessageSent(string msg)
+        private void Client_OnMessageSent(int bytesSent)
         {
-            AppendText($"전송 완료: {msg}");
+            AppendText("보낸 바이트 수: " + bytesSent);
         }
 
         private void Client_OnDisconnected()
@@ -45,7 +43,7 @@ namespace WinFormClient
 
         private async void button1_Click(object sender, EventArgs e)
         {
-            await client.ConnectAsync();
+            await client.ConnectAsync(); 
         }
 
         private async void button2_Click(object sender, EventArgs e)
@@ -58,10 +56,7 @@ namespace WinFormClient
 
         private async void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (client != null)
-            {
-                await client.DisconnectAsync();
-            }
+            client.Dispose();
         }
 
         private void AppendText(string text)

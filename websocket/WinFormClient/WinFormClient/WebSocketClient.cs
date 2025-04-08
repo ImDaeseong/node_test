@@ -8,6 +8,12 @@ using System.Threading.Tasks;
 
 namespace WinFormClient
 {
+    public delegate void OnClientReceiveMsgDelegate(string message);
+    public delegate void OnClientConnectDelegate();
+    public delegate void OnClientDisConnectDelegate();
+    public delegate void OnClientSendCompleteDelegate(int bytesSent);
+    public delegate void OnClientCodeDelegate(string code);
+
     public class WebSocketClient : IDisposable
     {
         private ClientWebSocket ws;
@@ -19,11 +25,10 @@ namespace WinFormClient
         private static readonly Encoding Utf8 = Encoding.UTF8;
         private Task receiveTask;
 
-        public event Action OnConnected;
-        public event Action OnDisconnected;
-        public event Action<string> OnMessageReceived;
-        public event Action<string> OnMessageSent;
-        public event Action<string> OnCode;
+        public event OnClientConnectDelegate OnConnected;
+        public event OnClientDisConnectDelegate OnDisconnected;
+        public event OnClientReceiveMsgDelegate OnMessageReceived;
+        public event OnClientSendCompleteDelegate OnMessageSent;
 
         public WebSocketClient(string url)
         {
@@ -42,20 +47,17 @@ namespace WinFormClient
             {
                 await ws.ConnectAsync(uri, cts.Token).ConfigureAwait(false);
                 OnConnected?.Invoke();
-                OnCode?.Invoke("서버에 연결되었습니다.");
-
                 receiveTask = Task.Run(() => ReceiveLoopAsync());
             }
             catch (Exception ex)
             {
-                OnCode?.Invoke("연결 실패: " + ex.Message);
+                Console.WriteLine("연결 실패: " + ex.Message);
             }
         }
 
         public async Task DisconnectAsync()
         {
-            if (ws == null)
-                return;
+            if (ws == null) return;
 
             var localCts = cts;
             cts = null;
@@ -71,7 +73,7 @@ namespace WinFormClient
             }
             catch (Exception ex)
             {
-                OnCode?.Invoke("연결 종료 중 오류: " + ex.Message);
+                Console.WriteLine("연결 종료 중 오류: " + ex.Message);
             }
             finally
             {
@@ -105,12 +107,12 @@ namespace WinFormClient
             try
             {
                 await ws.SendAsync(new ArraySegment<byte>(packet), WebSocketMessageType.Binary, true, CancellationToken.None).ConfigureAwait(false);
-                OnMessageSent?.Invoke(message);
-                OnCode?.Invoke("보낸 메시지: " + message);
+                OnMessageSent?.Invoke(packet.Length);
+                Console.WriteLine("보낸 메시지: " + message);
             }
             catch (Exception ex)
             {
-                OnCode?.Invoke("메시지 전송 오류: " + ex.Message);
+                Console.WriteLine("메시지 전송 오류: " + ex.Message);
             }
         }
 
@@ -122,27 +124,20 @@ namespace WinFormClient
             {
                 while (ws != null && ws.State == WebSocketState.Open && cts != null && !cts.IsCancellationRequested)
                 {
-                    WebSocketReceiveResult result = null;
+                    WebSocketReceiveResult result;
                     try
                     {
                         result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token).ConfigureAwait(false);
                     }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        break;
-                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (ObjectDisposedException) { break; }
                     catch (Exception ex)
                     {
-                        OnCode?.Invoke("데이터 수신 오류: " + ex.Message);
+                        Console.WriteLine("데이터 수신 오류: " + ex.Message);
                         break;
                     }
 
-                    if (result == null || result.MessageType == WebSocketMessageType.Close)
-                        break;
+                    if (result == null || result.MessageType == WebSocketMessageType.Close) break;
 
                     messageBuffer.AddRange(new ArraySegment<byte>(buffer, 0, result.Count));
                     ProcessMessages();
@@ -150,7 +145,7 @@ namespace WinFormClient
             }
             catch (Exception ex)
             {
-                OnCode?.Invoke("수신 루프 오류: " + ex.Message);
+                Console.WriteLine("수신 루프 오류: " + ex.Message);
             }
             finally
             {
@@ -163,7 +158,6 @@ namespace WinFormClient
             while (messageBuffer.Count >= 4)
             {
                 byte[] lengthBytes = messageBuffer.GetRange(0, 4).ToArray();
-
                 if (BitConverter.IsLittleEndian)
                     Array.Reverse(lengthBytes);
 
@@ -189,17 +183,16 @@ namespace WinFormClient
                     var root = doc.RootElement;
                     string type = root.GetProperty("type").GetString();
                     string content = root.GetProperty("content").GetString();
-
                     OnMessageReceived?.Invoke(string.Format("[{0}] {1}", type, content));
                 }
             }
             catch (JsonException ex)
             {
-                OnCode?.Invoke("JSON 파싱 오류: " + ex.Message);
+                Console.WriteLine("JSON 파싱 오류: " + ex.Message);
             }
             catch (Exception ex)
             {
-                OnCode?.Invoke("메시지 처리 오류: " + ex.Message);
+                Console.WriteLine("메시지 처리 오류: " + ex.Message);
             }
         }
 
@@ -221,10 +214,9 @@ namespace WinFormClient
                     }
                     catch (Exception ex)
                     {
-                        OnCode?.Invoke("Dispose 중 오류: " + ex.Message);
+                        Console.WriteLine("Dispose 중 오류: " + ex.Message);
                     }
                 }
-
                 disposed = true;
             }
         }
