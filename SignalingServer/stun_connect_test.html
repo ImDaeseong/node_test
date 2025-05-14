@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STUN Server Test</title>
+</head>
+<body>
+    <h1>STUN Server Test</h1>
+    <p id="status">STUN 서버의 사용 가능 여부를 확인 중...</p> <!-- 결과를 표시할 부분 -->
+
+    <script>
+        console.log("WebRTC 초기화 중...");
+
+        // STUN 서버 설정
+        const rtcConfig = {
+            iceServers: [
+                {
+                    urls: "stun:stun.l.google.com:19302"  // 사용할 STUN 서버 URL
+                }
+            ]
+        };
+
+        // RTCPeerConnection 객체 생성
+        const peerConnection = new RTCPeerConnection(rtcConfig);
+
+        console.log("RTCPeerConnection 생성됨:", peerConnection);
+
+        // ICE 후보를 처리하는 이벤트
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                // ICE 후보가 발견되면 후보 정보 출력
+                console.log("새로운 ICE 후보 발견:", event.candidate);
+            } else {
+                // ICE 후보 모음 완료
+                console.log("ICE 후보 모음 완료.");
+            }
+        };
+
+        // 연결을 시도하고 offer를 생성
+        peerConnection.createOffer().then((offer) => {
+            console.log("Offer 생성됨:", offer);
+            // 로컬 설명 설정
+            return peerConnection.setLocalDescription(offer);
+        }).catch((error) => {
+            // 오류 발생 시 처리
+            console.error("STUN 서버 연결 실패:", error);
+            document.getElementById("status").textContent = "STUN 서버 연결 실패";  // 오류 메시지 페이지에 출력
+        });
+
+        // 연결이 성공하면 "STUN 서버 연결 성공" 메시지 표시
+        setTimeout(() => {
+            document.getElementById("status").textContent = "STUN 서버 연결 성공";  // 성공 메시지 페이지에 출력
+        }, 3000);  // 3초 후에 성공 메시지 출력
+    </script>
+</body>
+</html>

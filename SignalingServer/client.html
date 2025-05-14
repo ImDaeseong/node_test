@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebRTC Peer Messaging</title>
+    <style>
+      /* 스타일 수정: textarea 넓이를 100%로 설정 */
+      #message {
+        width: 100%;
+        height: 100px;
+        margin-bottom: 10px;
+      }
+      #received {
+        white-space: pre-wrap; /* 줄바꿈이 있는 메시지를 표시 */
+        margin-top: 10px;
+        border: 1px solid #ddd;
+        padding: 10px;
+        min-height: 50px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>WebRTC Peer Messaging</h1>
+    <textarea id="message" placeholder="Type a message..."></textarea><br />
+    <button id="send">Send</button>
+    <p><strong>Received:</strong></p>
+    <div id="received"></div>
+
+    <script>
+      // WebSocket 서버에 연결
+      const socket = new WebSocket("ws://localhost:8080");
+
+      // RTC (WebRTC) Peer Connection 객체 생성
+      const peerConnection = new RTCPeerConnection({
+        // STUN 서버 설정
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+      });
+
+      // 데이터 채널 변수
+      let dataChannel;
+
+      // 제안자 여부를 나타내는 변수
+      let isOfferer = false;
+
+      // WebSocket 연결이 열리면 실행되는 콜백 함수
+      socket.onopen = () => {
+        // 첫 번째 클라이언트는 offer를 생성하고, 두 번째 클라이언트는 offer를 기다린다
+        isOfferer = true;  // 첫 번째 클라이언트는 offer를 생성할 예정
+
+        // 채팅용 데이터 채널 생성
+        dataChannel = peerConnection.createDataChannel("chat");
+
+        // 데이터 채널 설정 함수 호출
+        setupDataChannel();
+
+        // offer 생성 후 로컬 세션 설명 설정
+        peerConnection.createOffer().then(offer => {
+          return peerConnection.setLocalDescription(offer);
+        }).then(() => {
+          // 생성된 offer를 WebSocket을 통해 전송
+          socket.send(JSON.stringify({ offer: peerConnection.localDescription }));
+        }).catch(console.error);  // 오류 처리
+      };
+
+      // WebSocket에서 메시지를 받으면 실행되는 콜백 함수
+      socket.onmessage = async (event) => {
+        let data;
+
+        // WebSocket에서 Blob 객체를 받으면 텍스트로 변환
+        if (event.data instanceof Blob) {
+          data = JSON.parse(await event.data.text());
+        } else {
+          // 일반 텍스트 메시지 처리
+          data = JSON.parse(event.data);
+        }
+
+        // 상대방이 보낸 offer를 처리
+        if (data.offer) {
+          // remoteDescription을 설정하여 상대방의 offer를 받아들임
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+          // 상대방의 offer에 대한 답변 생성
+          const answer = await peerConnection.createAnswer();
+
+          // 로컬 답변 설정
+          await peerConnection.setLocalDescription(answer);
+
+          // 답변 전송
+          socket.send(JSON.stringify({ answer }));
+
+        } else if (data.answer) {
+          // 상대방이 보낸 answer 처리
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        } else if (data.candidate) {
+          // ICE candidate 처리
+          try {
+            // ICE 후보를 추가
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+          } catch (e) {
+            // ICE 후보 오류 처리
+            console.error("ICE candidate error:", e);
+          }
+        }
+      };
+
+      // ICE 후보가 생성되면 WebSocket을 통해 전송
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.send(JSON.stringify({ candidate: event.candidate }));
+        }
+      };
+
+      // 데이터 채널이 열리면 호출되는 함수
+      peerConnection.ondatachannel = (event) => {
+        // 데이터 채널을 설정
+        dataChannel = event.channel;
+
+        // 데이터 채널 설정 함수 호출
+        setupDataChannel();
+      };
+
+      // 데이터 채널의 동작을 설정하는 함수
+      function setupDataChannel() {
+        // 메시지를 받으면 "received" div에 추가
+        dataChannel.onmessage = (event) => {
+          // 받은 메시지를 출력하기 전에 기존 메시지 지우기
+          document.getElementById("received").textContent = `${event.data}`;
+        };
+
+        // 데이터 채널이 열렸을 때 로그 출력
+        dataChannel.onopen = () => {
+          console.log("Data channel opened");
+        };
+
+        // 데이터 채널이 닫혔을 때 로그 출력
+        dataChannel.onclose = () => {
+          console.log("Data channel closed");
+        };
+      }
+
+      // 'Send' 버튼 클릭 시 메시지를 전송하는 함수
+      document.getElementById("send").onclick = () => {
+        // 입력한 메시지
+        const message = document.getElementById("message").value;
+
+        if (dataChannel && dataChannel.readyState === "open") {
+          // 데이터 채널이 열려 있으면 메시지 전송
+          dataChannel.send(message);
+        } else {
+          // 데이터 채널이 열려 있지 않으면 경고 표시
+          alert("Data channel is not open.");
+        }
+      };
+    </script>
+
+  </body>
+</html>
