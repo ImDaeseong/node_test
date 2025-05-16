@@ -7,7 +7,7 @@ const BUFFER_SIZE = 2048;  // 최대 전송 크기
 
 // WebSocket 서버 생성
 const wss = new WebSocket.Server({
-    host: '127.0.0.1',
+    host: '0.0.0.0',
     port: PORT
 });
 
@@ -17,7 +17,7 @@ const clients = {
     pc: null
 };
 
-console.log(`WebSocket 서버 시작됨: ws://127.0.0.1:${PORT}`);
+console.log(`WebSocket 서버 시작됨: ws://0.0.0.0:${PORT}`);
 
 // 클라이언트 연결 처리
 wss.on('connection', (ws, req) => {
