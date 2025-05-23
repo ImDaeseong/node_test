@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebRTC 메시지 교환</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+    }
+    .container {
+      background: #fff;
+      padding: 20px;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    textarea, input, button {
+      width: 100%;
+      margin-top: 10px;
+      box-sizing: border-box;
+    }
+    textarea {
+      height: 150px;
+      resize: none;
+    }
+    button {
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h3>WebRTC 메시지 교환</h3>
+    <textarea id="chat" readonly></textarea>
+    <input type="text" id="input" placeholder="메시지 입력">
+    <button onclick="send()">전송(웹페이지)</button>
+  </div>
+
+  <script>
+    let ws, peer, dataChannel;
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("input");
+
+    document.addEventListener("DOMContentLoaded", () => {
+      
+      notifyWinForm("HTML 로딩 완료");
+
+      ws = new WebSocket("ws://localhost:8080/ws");
+
+      ws.onopen = () => {  
+        log("WebSocket 연결됨");    
+        notifyWinForm("WebSocket 연결됨");
+        startPeerConnection();
+      };
+
+      ws.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "offer") {
+          log("[Offer 수신]");
+          if (!peer) startPeerConnection();
+          await peer.setRemoteDescription(new RTCSessionDescription(data));
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
+        }
+
+        if (data.type === "answer") {
+          log("[Answer 수신]");
+          await peer.setRemoteDescription(new RTCSessionDescription(data));
+        }
+
+        if (data.type === "candidate") {
+          log("[ICE 후보 수신]");
+          await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+      };
+
+      ws.onerror = (e) => {
+        log("WebSocket 오류 발생");
+        notifyWinForm("WebSocket 오류 발생");
+      };
+
+      ws.onclose = () => {
+        log("WebSocket 닫힘");
+        notifyWinForm("WebSocket 닫힘");
+      };
+    });
+
+    function startPeerConnection() {
+      peer = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+      });
+
+      peer.onicecandidate = (event) => {
+        if (event.candidate) {
+          ws.send(JSON.stringify({ type: "candidate", candidate: event.candidate }));
+        }
+      };
+
+      peer.ondatachannel = (event) => {
+        dataChannel = event.channel;
+        setupDataChannel();
+      };
+
+      dataChannel = peer.createDataChannel("chat");
+      setupDataChannel();
+
+      peer.createOffer()
+        .then(offer => peer.setLocalDescription(offer))
+        .then(() => {
+          ws.send(JSON.stringify({ type: "offer", sdp: peer.localDescription.sdp }));
+        });
+    }
+
+    function setupDataChannel() {
+      dataChannel.onopen = () => {
+        log("DataChannel 열림");
+        notifyWinForm("DataChannel 열림");
+      };
+      dataChannel.onmessage = (e) => {
+        log("상대: " + e.data);
+        notifyWinForm("상대: " + e.data);
+      };
+      dataChannel.onerror = (e) => {
+        log("DataChannel 오류");
+        notifyWinForm("DataChannel 오류");
+      };
+      dataChannel.onclose = () => {
+        log("DataChannel 닫힘");
+        notifyWinForm("DataChannel 닫힘");
+      };
+    }
+
+    function send() {
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      if (dataChannel?.readyState === "open") {
+        dataChannel.send(msg);
+        log("나: " + msg);
+        notifyWinForm("나: " + msg);
+        input.value = "";
+      } else {
+        log("DataChannel이 닫혀있음");
+        notifyWinForm("DataChannel이 닫혀있음");
+      }
+    }
+
+    function log(msg) {
+      chat.value += msg + "\n";
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function notifyWinForm(msg) {
+      if (window.chrome?.webview) {
+        window.chrome.webview.postMessage(msg);
+      }
+    }
+
+    window.receiveFromForm = function(msg) {
+      if (dataChannel?.readyState === "open") {
+        dataChannel.send(msg);
+      } else {
+        notifyWinForm("WinForm으로 메시지 전송 실패");
+      }
+    };
+  </script>
+</body>
+</html>
