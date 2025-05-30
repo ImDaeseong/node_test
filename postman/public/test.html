@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>HTTPS Postman 테스트</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2em;
+    }
+    input[type="text"] {
+      padding: 8px;
+      margin: 5px 0;
+      width: 500px;
+      font-size: 16px;
+    }
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border: 1px solid #ccc;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h2>GET 요청 테스트</h2>
+  <form id="getForm" autocomplete="off">
+    <label>메시지:
+      <input type="text" id="getMsg" value="GET 요청 테스트">
+    </label>
+    <button type="submit">GET 요청</button>
+  </form>
+
+  <h2>POST 요청 테스트</h2>
+  <form id="postForm" autocomplete="off">
+    <label>메시지:
+      <input type="text" id="postMsg" value="POST 요청 테스트">
+    </label>
+    <button type="submit">POST 요청</button>
+  </form>
+
+  <h3>서버 응답:</h3>
+  <pre id="responseBox">여기에 서버 응답이 표시됩니다.</pre>
+
+  <script>
+    const responseBox = document.getElementById('responseBox');
+
+    // GET 요청 처리
+    document.getElementById('getForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('getMsg').value;
+      const url = `http://localhost:8080/postman?msg=${encodeURIComponent(msg)}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        responseBox.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        responseBox.textContent = '오류: ' + err;
+      }
+    });
+
+    // POST 요청 처리
+    document.getElementById('postForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('postMsg').value;
+      try {
+        const res = await fetch('http://localhost:8080/postman', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ msg })
+        });
+        const data = await res.json();
+        responseBox.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        responseBox.textContent = '오류: ' + err;
+      }
+    });
+  </script>
+</body>
+</html>
