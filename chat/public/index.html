@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>실시간 채팅방</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+  <style>
+    #messages {
+      height: 400px;
+      overflow-y: auto;
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+    }
+    .admin-badge {
+      font-size: 0.75rem;
+      color: white;
+      background-color: #198754;
+      border-radius: 12px;
+      padding: 2px 8px;
+      margin-left: 8px;
+    }
+    .file-item {
+      background-color: #e3f2fd;
+      border: 1px solid #2196f3;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 5px 0;
+    }
+    .file-download-btn {
+      background-color: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 5px 10px;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .file-download-btn:hover {
+      background-color: #1976d2;
+      color: white;
+    }
+    .message-item {
+      margin-bottom: 8px;
+      padding: 5px 0;
+    }
+    .system-message {
+      color: #6c757d;
+      font-style: italic;
+    }
+    .user-message {
+      color: #212529;
+    }
+    .file-upload-area {
+      border: 2px dashed #dee2e6;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      background-color: #f8f9fa;
+      margin-bottom: 15px;
+    }
+    .file-upload-area.dragover {
+      border-color: #0d6efd;
+      background-color: #e7f3ff;
+    }
+    .progress-container {
+      display: none;
+      margin-top: 10px;
+    }
+    #userList .list-group-item {
+      border: none;
+      padding: 8px 12px;
+    }
+    .online-indicator {
+      width: 8px;
+      height: 8px;
+      background-color: #198754;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4 text-center text-primary">
+      <i class="fas fa-comments"></i> 실시간 채팅방
+    </h1>
+
+    <!-- 입장 영역 -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="nickname" class="form-label">닉네임</label>
+            <input id="nickname" class="form-control" placeholder="닉네임을 입력하세요" />
+          </div>
+          <div class="col-md-4">
+            <label for="roomInput" class="form-label">방 이름</label>
+            <input id="roomInput" class="form-control" placeholder="방 이름을 입력하세요" />
+          </div>
+          <div class="col-md-4 d-flex align-items-end gap-2">
+            <button id="joinBtn" class="btn btn-primary flex-fill">
+              <i class="fas fa-sign-in-alt"></i> 입장
+            </button>
+            <button id="leaveBtn" class="btn btn-danger flex-fill" disabled>
+              <i class="fas fa-sign-out-alt"></i> 퇴장
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 채팅 및 사용자 목록 -->
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="fas fa-users"></i> 
+              <span id="roomTitle">방 정보: 없음</span>
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            <ul id="userList" class="list-group list-group-flush"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="fas fa-comment-dots"></i> 채팅
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            <div id="messages"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 채팅 입력 -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <form id="form" class="row g-2 align-items-center">
+          <div class="col-10">
+            <input id="input" class="form-control" placeholder="메시지를 입력하세요..." autocomplete="off" />
+          </div>
+          <div class="col-2">
+            <button class="btn btn-success w-100" type="submit">
+              <i class="fas fa-paper-plane"></i> 전송
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 파일 전송 -->
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0">
+          <i class="fas fa-file-upload"></i> 파일 전송
+        </h6>
+      </div>
+      <div class="card-body">
+        <div id="fileUploadArea" class="file-upload-area">
+          <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
+          <p class="mb-2">파일을 드래그하거나 클릭하여 선택하세요</p>
+          <p class="text-muted small">최대 5MB, 허용 형식: jpg, png, pdf, txt, doc, xls, zip 등</p>
+          <input type="file" id="fileInput" class="form-control" style="display: none;" />
+        </div>
+        <div class="progress-container">
+          <div class="progress">
+            <div id="uploadProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="row g-2 mt-2">
+          <div class="col-8">
+            <span id="selectedFileName" class="text-muted">선택된 파일 없음</span>
+          </div>
+          <div class="col-4">
+            <button id="fileSendBtn" class="btn btn-secondary w-100" disabled>
+              <i class="fas fa-upload"></i> 파일 전송
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 알림 토스트 -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="notificationToast" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="fas fa-bell text-primary"></i>
+        <strong class="me-auto ms-2">알림</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastMessage"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const socket = io();
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+    const userList = document.getElementById('userList');
+    const nicknameInput = document.getElementById('nickname');
+    const roomInput = document.getElementById('roomInput');
+    const joinBtn = document.getElementById('joinBtn');
+    const leaveBtn = document.getElementById('leaveBtn');
+    const roomTitle = document.getElementById('roomTitle');
+    const fileInput = document.getElementById('fileInput');
+    const fileSendBtn = document.getElementById('fileSendBtn');
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const progressContainer = document.querySelector('.progress-container');
+
+    let selectedFile = null;
+
+    // 알림 토스트 함수
+    function showToast(message, type = 'info') {
+      const toastElement = document.getElementById('notificationToast');
+      const toastMessage = document.getElementById('toastMessage');
+      toastMessage.textContent = message;
+      
+      const toast = new bootstrap.Toast(toastElement);
+      toast.show();
+    }
+
+    // 채팅 메시지 전송
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (input.value.trim()) {
+        socket.emit('chat message', input.value.trim());
+        input.value = '';
+      }
+    });
+
+    // 방 입장 요청
+    joinBtn.addEventListener('click', () => {
+      const nickname = nicknameInput.value.trim();
+      const room = roomInput.value.trim();
+      if (!nickname || !room) {
+        showToast('닉네임과 방 이름을 모두 입력하세요.');
+        return;
+      }
+      socket.emit('join room', { roomName: room, nickname });
+    });
+
+    // 방 퇴장 요청
+    leaveBtn.addEventListener('click', () => {
+      socket.emit('leave room');
+      clearUI();
+      addSystemMessage('방에서 퇴장하였습니다.');
+    });
+
+    // 파일 업로드 영역 이벤트
+    fileUploadArea.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileUploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      fileUploadArea.classList.add('dragover');
+    });
+
+    fileUploadArea.addEventListener('dragleave', () => {
+      fileUploadArea.classList.remove('dragover');
+    });
+
+    fileUploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileUploadArea.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFileSelection(files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFileSelection(e.target.files[0]);
+      }
+    });
+
+    function handleFileSelection(file) {
+      selectedFile = file;
+      selectedFileName.textContent = `${file.name} (${formatFileSize(file.size)})`;
+      fileSendBtn.disabled = false;
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // 파일 전송
+    fileSendBtn.addEventListener('click', () => {
+      if (!selectedFile) {
+        showToast('전송할 파일을 선택하세요.');
+        return;
+      }
+
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        showToast('파일 크기가 5MB를 초과합니다.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        progressContainer.style.display = 'block';
+        uploadProgress.style.width = '100%';
+        
+        socket.emit('file send', {
+          fileName: selectedFile.name,
+          fileBuffer: reader.result,
+        });
+
+        setTimeout(() => {
+          progressContainer.style.display = 'none';
+          uploadProgress.style.width = '0%';
+          selectedFile = null;
+          selectedFileName.textContent = '선택된 파일 없음';
+          fileSendBtn.disabled = true;
+          fileInput.value = '';
+        }, 1000);
+      };
+      reader.readAsArrayBuffer(selectedFile);
+    });
+
+    // 서버 이벤트 리스너들
+    socket.on('joined room', ({ roomName, nickname, isAdmin }) => {
+      toggleUI(true);
+      addSystemMessage(`${nickname} 님, 환영합니다!`);
+      roomTitle.textContent = `${roomName}`;
+      if (isAdmin) {
+        addSystemMessage('당신은 이 방의 관리자입니다.');
+      }
+      showToast(`${roomName} 방에 입장했습니다.`);
+    });
+
+    socket.on('chat message', (msg) => {
+      addUserMessage(msg);
+    });
+
+    socket.on('user list', (users) => {
+      userList.innerHTML = '';
+      users.forEach(user => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-center';
+        li.innerHTML = `
+          <span class="online-indicator"></span>
+          ${user.name}
+          ${user.isAdmin ? '<span class="admin-badge">관리자</span>' : ''}
+        `;
+        userList.appendChild(li);
+      });
+    });
+
+    socket.on('admin status', (isAdmin) => {
+      if (isAdmin) {
+        addSystemMessage('관리자 권한이 부여되었습니다.');
+        showToast('관리자 권한이 부여되었습니다.');
+      }
+    });
+
+    socket.on('nickname exists', (nickname) => {
+      showToast(`닉네임 '${nickname}' 는 이미 사용 중입니다. 다른 닉네임을 사용하세요.`);
+    });
+
+    socket.on('file receive', ({ fileName, uniqueFileName, sender, fileSize, timestamp }) => {
+      const fileItem = document.createElement('div');
+      fileItem.className = 'file-item';
+      fileItem.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <i class="fas fa-file me-2"></i>
+            <strong>${fileName}</strong>
+            <br>
+            <small class="text-muted">
+              ${sender} • ${formatFileSize(fileSize)} • ${timestamp}
+            </small>
+          </div>
+          <a href="/download/${uniqueFileName}" 
+             class="file-download-btn" 
+             download="${fileName}">
+            <i class="fas fa-download"></i> 다운로드
+          </a>
+        </div>
+      `;
+      addElement(fileItem);
+    });
+
+    socket.on('file error', (error) => {
+      showToast(error);
+    });
+
+    // UI 함수들
+    function addUserMessage(msg) {
+      const item = document.createElement('div');
+      item.className = 'message-item user-message';
+      item.textContent = msg;
+      addElement(item);
+    }
+
+    function addSystemMessage(msg) {
+      const item = document.createElement('div');
+      item.className = 'message-item system-message';
+      item.innerHTML = `<i class="fas fa-info-circle me-1"></i>${msg}`;
+      addElement(item);
+    }
+
+    function addElement(element) {
+      messages.appendChild(element);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function toggleUI(entered) {
+      joinBtn.disabled = entered;
+      leaveBtn.disabled = !entered;
+      nicknameInput.disabled = entered;
+      roomInput.disabled = entered;
+      input.disabled = !entered;
+      fileInput.disabled = !entered;
+      if (!entered) {
+        fileSendBtn.disabled = true;
+      }
+    }
+
+    function clearUI() {
+      userList.innerHTML = '';
+      messages.innerHTML = '';
+      roomTitle.textContent = '방 정보: 없음';
+      selectedFile = null;
+      selectedFileName.textContent = '선택된 파일 없음';
+      toggleUI(false);
+    }
+
+    // 초기 UI 세팅
+    toggleUI(false);
+
+    // Enter 키로 방 입장
+    [nicknameInput, roomInput].forEach(element => {
+      element.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !joinBtn.disabled) {
+          joinBtn.click();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
