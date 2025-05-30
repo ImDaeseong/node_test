@@ -5,6 +5,7 @@ const { generateHtml } = require('./htmlGenerator');
 const { sendTelegram } = require('./push')
 const cron = require('node-cron');
 
+
 async function getStock(stockname, stockcode) {
     const URL = `https://finance.naver.com/item/main.nhn?code=${stockcode}`;
 
@@ -90,6 +91,7 @@ async function getStock(stockname, stockcode) {
 }
 
 async function runTask() {
+
     const results = [];
     for (const [stockname, stockcode] of Object.entries(AREA_CODES)) {
         const result = await getStock(stockname, stockcode);
@@ -125,14 +127,14 @@ async function runTask() {
 
 //30분마다 실행
 cron.schedule('*/30 * * * *', () => {
-    console.log('\n[자동 실행] 날씨 조회 시작...');
+    console.log('\n[자동 실행] 주식 조회 시작...');
     runTask();
 });
   
   
 // 수동 실행
 if (require.main === module) {
-  console.log('\n[수동 실행] 날씨 조회 시작...');
+  console.log('\n[수동 실행] 주식 조회 시작...');
   runTask();
 }
   
